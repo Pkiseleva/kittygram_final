@@ -2,7 +2,6 @@ name: Kittygram CI/CD
 
 on:
   push:
-    branches: [ main ]
   pull_request:
     branches: [ main ]
 
@@ -15,14 +14,18 @@ env:
 jobs:
   tests:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install backend deps
         working-directory: ./backend
@@ -41,11 +44,19 @@ jobs:
             && sudo rm -rf /var/lib/apt/lists/* \
             && python -m pip install --upgrade pip \
             && pip install -r requirements.txt \
-            && pip install ruff
+            && pip install ruff pycodestyle
 
-      - name: Run Ruff (backend lint)
+      - name: Run Ruff check
         working-directory: ./backend
         run: ruff check .
+
+      - name: Run Ruff format check
+        working-directory: ./backend
+        run: ruff format --check .
+
+      - name: Run pycodestyle
+        working-directory: ./backend
+        run: pycodestyle .
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -64,7 +75,9 @@ jobs:
 
   build_and_push:
     needs: tests
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -110,3 +123,6 @@ jobs:
           token: ${{ env.TELEGRAM_TOKEN }}
           message: |
             CI/CD успешно выполнен!
+            Автор: ${{ github.actor }}
+            Коммит: ${{ github.event.commits[0].message }}
+            Ссылка: https://github.com/${{ github.repository }}/commit/${{ github.sha }}
